@@ -13,6 +13,10 @@ import reactor.core.publisher.Sinks;
 @RestController
 @RequestMapping("/api/customers")
 public class CustomerController {
+    @GetMapping("/ping")
+    public String ping() {
+        return "pong";
+    }
 
     private final CustomerService customerService;
     private final Sinks.Many<Customer> sink;
