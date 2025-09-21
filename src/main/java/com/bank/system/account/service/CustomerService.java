@@ -31,8 +31,9 @@ public class CustomerService {
 
     // Buscar todos los clientes
     public Flux<Customer> getAllCustomers() {
-        return customerRepository.findAll();
+        return customerRepository.findAllCustomersFixed();
     }
+
 
     // Buscar cliente por ID
     public Mono<Customer> getCustomerById(Long id) {
