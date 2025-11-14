@@ -1,27 +1,21 @@
-package com.nttdata.ms_customer.domain.model;
+package com.nttdata.ms_account.domain.dto;
 
+
+import com.nttdata.ms_account.domain.model.CustomerType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
+@Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Builder
-public class Customer {
-    private String id;
+public class CustomerRequestDTO {
     private String firstname;
     private String lastname;
     private String documentNumber;
     private String email;
     private String phone;
     private CustomerType customerType;
-
-    private Boolean active;
-    public void ensureActive() {
-        if (active != null && !active) {
-            throw new RuntimeException("Customer is inactive");
-        }
-    }
 }
