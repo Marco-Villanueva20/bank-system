@@ -1,7 +1,6 @@
-package com.nttdata.ms_account.domain.dto;
+package com.nttdata.ms_account.infrastructure.client.dto;
 
 
-import com.nttdata.ms_account.domain.model.CustomerType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,5 +16,6 @@ public class CustomerRequestDTO {
     private String documentNumber;
     private String email;
     private String phone;
-    private CustomerType customerType;
+    private String customerType;
+    private Boolean active;
 }

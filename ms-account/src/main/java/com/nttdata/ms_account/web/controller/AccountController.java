@@ -58,7 +58,7 @@ public class AccountController {
             @RequestBody AccountRequestDTO requestDTO) {
 
         Account domain = accountMapper.toDomain(requestDTO);
-        domain.setId(id); // 🔥 IMPORTANTE: asignar id al domain
+        domain.setId(id);
 
         return accountService.update(domain)
                 .map(accountMapper::toResponseDTO);
@@ -72,51 +72,4 @@ public class AccountController {
         return accountService.deleteById(id);
     }
 
-    // -------------------------------------------------------
-    // OPERACIONES ESPECIALES
-    // -------------------------------------------------------
-
-    // DEPOSITAR
-    @PostMapping("/{id}/deposit")
-    public Mono<AccountResponseDTO> deposit(
-            @PathVariable String id,
-            @RequestBody Map<String, BigDecimal> body) {
-
-        BigDecimal amount = body.get("amount");
-        return accountService.deposit(id, amount)
-                .map(accountMapper::toResponseDTO);
-    }
-
-    // RETIRAR
-    @PostMapping("/{id}/withdraw")
-    public Mono<AccountResponseDTO> withdraw(
-            @PathVariable String id,
-            @RequestBody Map<String, BigDecimal> body) {
-
-        BigDecimal amount = body.get("amount");
-        return accountService.withdraw(id, amount)
-                .map(accountMapper::toResponseDTO);
-    }
-
-    // AGREGAR HOLDER
-    @PostMapping("/{id}/holders")
-    public Mono<AccountResponseDTO> addHolder(
-            @PathVariable String id,
-            @RequestBody Map<String, String> body) {
-
-        String holderId = body.get("holderId");
-        return accountService.addHolder(id, holderId)
-                .map(accountMapper::toResponseDTO);
-    }
-
-    // AGREGAR SIGNATORY
-    @PostMapping("/{id}/signatories")
-    public Mono<AccountResponseDTO> addSignatory(
-            @PathVariable String id,
-            @RequestBody Map<String, String> body) {
-
-        String signatoryId = body.get("signatoryId");
-        return accountService.addSignatory(id, signatoryId)
-                .map(accountMapper::toResponseDTO);
-    }
 }

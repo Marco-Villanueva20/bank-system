@@ -10,4 +10,5 @@ public interface AccountRepository {
     Mono<Account> create(Account domain);
     Mono<Account> update(Account domain);
     Mono<Void> deleteById(String id);
+    Flux<Account> findByCustomerId(String customerId);
 }

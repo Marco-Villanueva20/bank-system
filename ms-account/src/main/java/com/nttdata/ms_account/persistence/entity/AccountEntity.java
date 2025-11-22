@@ -10,6 +10,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -24,8 +26,12 @@ public class AccountEntity {
     private String accountNumber; // número único de cuenta
     private String customerId;
     private AccountType accountType;
-    private Integer fixedDay;
-    private BigDecimal balance;
-    private Integer monthlyMovements;
-    private Boolean active;
+    private BigDecimal balance; //SALDO
+    private List<String> holders; //TITULARES
+    private List<String> signers; //IDs de personas (firmantes)
+    private Integer fixedTermDay; //Dia permitido para FIXED_TERM
+    private Integer maxMonthlyMovements; //movimientos mensuales maximos
+    private LocalDateTime createdAt; //creado
+
+
 }

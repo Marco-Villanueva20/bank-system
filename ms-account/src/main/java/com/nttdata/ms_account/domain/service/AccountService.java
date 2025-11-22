@@ -1,8 +1,9 @@
 package com.nttdata.ms_account.domain.service;
 
+import com.nttdata.ms_account.domain.exception.BusinessException;
 import com.nttdata.ms_account.domain.model.Account;
 import com.nttdata.ms_account.domain.model.AccountType;
-import com.nttdata.ms_account.domain.model.CustomerType;
+import com.nttdata.ms_account.infrastructure.client.dto.CustomerResponseDTO;
 import com.nttdata.ms_account.domain.repository.AccountRepository;
 import com.nttdata.ms_account.infrastructure.client.CustomerClient;
 import com.nttdata.ms_account.persistence.mapper.AccountMapper;
@@ -11,164 +12,198 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.ArrayList;
 
 @Service
 @RequiredArgsConstructor
 public class AccountService {
+
     private final AccountRepository accountRepository;
     private final AccountMapper accountMapper;
     private final CustomerClient customerClient;
-    // si más adelante validas el tipo de customer, inyecta aquí un cliente http (WebClient) para ms_customer
 
-    public Flux<Account> getAll(){
+    public Flux<Account> getAll() {
         return accountRepository.getAll();
     }
-
-    public Mono<Account> createAccount(Account account) {
-        return customerClient.getCustomerById(account.getCustomerId())
-                .switchIfEmpty(Mono.error(new RuntimeException("Customer not found")))
-                .flatMap(customer -> {
-
-                    if (customer.getCustomerType().equals(CustomerType.BUSINESS)) {
-                        if (account.getAccountType() != AccountType.CHECKING) {
-                            return Mono.error(new RuntimeException("Only CHECKING allowed for business customers"));
-                        }
-                    }
-
-                    // Aquí ya todo OK
-                    return accountRepository.create(account);
-                });
-    }
-
 
     public Mono<Account> getById(String id) {
         return accountRepository.getById(id);
     }
 
+    /**
+     * create account verify type client
+     */
     public Mono<Account> create(Account domain) {
-        // Validaciones simples que solo requieren el domain
-        if (domain.getAccountType() == AccountType.FIXED_TERM && domain.getFixedDay() == null) {
-            return Mono.error(new IllegalArgumentException("Fixed term accounts require fixedDay"));
-        }
-
-        // holders/signatories solo aplican a cuentas CHECKING (corriente empresarial)
-        if (hasHoldersOrSignatories(domain) && domain.getAccountType() != AccountType.CHECKING) {
-            return Mono.error(new IllegalArgumentException("Holders/signatories are only allowed for CHECKING accounts"));
-        }
-
-        // Normalizaciones / defaults para evitar nulls
-        if (domain.getBalance() == null) domain.setBalance(BigDecimal.ZERO);
-        if (domain.getMonthlyMovements() == null) domain.setMonthlyMovements(0);
-        if (domain.getActive() == null) domain.setActive(true);
-        if (domain.getHolders() == null) domain.setHolders(new ArrayList<>());
-        if (domain.getSignatories() == null) domain.setSignatories(new ArrayList<>());
-
-        // aquí podrías llamar a ms_customer para validar customerId (si lo deseas)
-        return accountRepository.create(domain);
+        return customerClient.getCustomerById(domain.getCustomerId())
+                .switchIfEmpty(Mono.error(new BusinessException("El cliente no existe")))
+                .flatMap(customer -> switch (domain.getAccountType()) {
+                    case SAVINGS -> createSavings(domain, customer);
+                    case CHECKING -> createChecking(domain, customer);
+                    case FIXED_TERM -> createFixedTerm(domain, customer);
+                });
     }
 
+
+
     public Mono<Account> update(Account domain) {
+
         if (domain.getId() == null) {
             return Mono.error(new IllegalArgumentException("Account id is required for update"));
         }
 
         return accountRepository.getById(domain.getId())
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Account not found")))
+                .switchIfEmpty(Mono.error(new BusinessException("Account not found")))
                 .flatMap(existing -> {
-                    // Actualizar campos permitidos (no sobreescribir movimientos históricos inesperadamente)
-                    if (domain.getAccountNumber() != null) existing.setAccountNumber(domain.getAccountNumber());
-                    if (domain.getAccountType() != null) existing.setAccountType(domain.getAccountType());
-                    if (domain.getFixedDay() != null) existing.setFixedDay(domain.getFixedDay());
-                    if (domain.getBalance() != null) existing.setBalance(domain.getBalance());
-                    if (domain.getMonthlyMovements() != null) existing.setMonthlyMovements(domain.getMonthlyMovements());
 
-                    // holders/signatories: validar coherencia con tipo de cuenta
+                    // ====== CAMPOS NO EDITABLES (PROTECCIÓN) ======
+                    if (domain.getAccountType() != null
+                            && domain.getAccountType() != existing.getAccountType()) {
+                        return Mono.error(new BusinessException("Account type cannot be changed"));
+                    }
+
+                    if (domain.getCustomerId() != null
+                            && !domain.getCustomerId().equals(existing.getCustomerId())) {
+                        return Mono.error(new BusinessException("Customer cannot be changed"));
+                    }
+
+                    if (domain.getAccountNumber() != null
+                            && !domain.getAccountNumber().equals(existing.getAccountNumber())) {
+                        return Mono.error(new BusinessException("Account number cannot be changed"));
+                    }
+
+                    if (domain.getBalance() != null
+                            && domain.getBalance().compareTo(existing.getBalance()) != 0) {
+                        return Mono.error(new BusinessException("Balance cannot be modified manually"));
+                    }
+
+                    if (domain.getMonthlyMovementCount() != null
+                            && !domain.getMonthlyMovementCount().equals(existing.getMonthlyMovementCount())) {
+                        return Mono.error(new BusinessException("Monthly movement count cannot be modified"));
+                    }
+
+                    // ====== CAMPOS EDITABLES ======
+
+                    // Límite movimientos → editable
+                    if (domain.getMonthlyMovementLimit() != null) {
+                        existing.setMonthlyMovementLimit(domain.getMonthlyMovementLimit());
+                    }
+
+                    // Titulares y firmantes (solo CHECKING)
                     if (domain.getHolders() != null) {
-                        if (existing.getAccountType() != AccountType.CHECKING && domain.getHolders().size() > 0) {
-                            return Mono.error(new IllegalArgumentException("Cannot add holders to a non-CHECKING account"));
+                        if (existing.getAccountType() != AccountType.CHECKING) {
+                            return Mono.error(new BusinessException("Only CHECKING accounts can have holders"));
                         }
                         existing.setHolders(domain.getHolders());
                     }
-                    if (domain.getSignatories() != null) {
-                        if (existing.getAccountType() != AccountType.CHECKING && domain.getSignatories().size() > 0) {
-                            return Mono.error(new IllegalArgumentException("Cannot add signatories to a non-CHECKING account"));
+
+                    if (domain.getSigners() != null) {
+                        if (existing.getAccountType() != AccountType.CHECKING) {
+                            return Mono.error(new BusinessException("Only CHECKING accounts can have signers"));
                         }
-                        existing.setSignatories(domain.getSignatories());
+                        existing.setSigners(domain.getSigners());
                     }
 
-                    if (domain.getActive() != null) existing.setActive(domain.getActive());
+                    // fixedTermDay → SOLO FIXED TERM
+                    if (domain.getFixedTermDay() != null) {
+                        if (existing.getAccountType() != AccountType.FIXED_TERM) {
+                            return Mono.error(new BusinessException("Only fixed-term accounts can have fixedTermDay"));
+                        }
+                        existing.setFixedTermDay(domain.getFixedTermDay());
+                    }
 
-                    // Revalidar reglas simples
-                    if (existing.getAccountType() == AccountType.FIXED_TERM && existing.getFixedDay() == null) {
-                        return Mono.error(new IllegalArgumentException("Fixed term accounts require fixedDay"));
+                    // Active → editable
+                    if (domain.getActive() != null) {
+                        existing.setActive(domain.getActive());
                     }
 
                     return accountRepository.update(existing);
                 });
     }
 
+
     public Mono<Void> deleteById(String id) {
         return accountRepository.deleteById(id);
     }
 
-    // ---------------------------------------------------
-    // Operaciones que usan la lógica del dominio (Account)
-    // ---------------------------------------------------
 
-    public Mono<Account> deposit(String accountId, BigDecimal amount) {
-        LocalDate today = LocalDate.now();
 
-        return accountRepository.getById(accountId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Account not found")))
-                .flatMap(account -> {
-                    account.deposit(amount, today);           // lógica viva en el domain
-                    return accountRepository.update(account); // persistir cambios
-                });
-    }
 
-    public Mono<Account> withdraw(String accountId, BigDecimal amount) {
-        LocalDate today = LocalDate.now();
+    /**Client Personal 1 account savings
+     * */
+    private Mono<Account> createSavings(Account domain, CustomerResponseDTO customer) {
 
-        return accountRepository.getById(accountId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Account not found")))
-                .flatMap(account -> {
-                    account.withdraw(amount, today);
-                    return accountRepository.update(account);
-                });
-    }
+        if ("BUSINESS".equals(customer.getCustomerType())) {
+            return Mono.error(new BusinessException("Una empresa no puede tener cuenta de ahorro"));
+        }
 
-    public Mono<Account> addHolder(String accountId, String holderId) {
-        return accountRepository.getById(accountId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Account not found")))
-                .flatMap(account -> {
-                    if (account.getAccountType() != AccountType.CHECKING) {
-                        return Mono.error(new IllegalArgumentException("Holders can only be added to CHECKING accounts"));
+        return accountRepository.findByCustomerId(domain.getCustomerId())
+                .collectList()
+                .flatMap(accounts -> {
+
+                    boolean existsSavings = accounts.stream()
+                            .anyMatch(acc -> acc.getAccountType() == AccountType.SAVINGS);
+
+                    if (existsSavings) {
+                        return Mono.error(new BusinessException("El cliente ya tiene una cuenta de ahorro"));
                     }
-                    account.addHolder(holderId);
-                    return accountRepository.update(account);
+
+                    return accountRepository.create(domain);
                 });
     }
+    /**Client Personal 1 account checking and Client Business n account checking
+     * */
+    private Mono<Account> createChecking(Account domain, CustomerResponseDTO customer) {
 
-    public Mono<Account> addSignatory(String accountId, String signatoryId) {
-        return accountRepository.getById(accountId)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Account not found")))
-                .flatMap(account -> {
-                    if (account.getAccountType() != AccountType.CHECKING) {
-                        return Mono.error(new IllegalArgumentException("Signatories can only be added to CHECKING accounts"));
+        // Las empresas sí pueden tener múltiples CHECKING → sin validación
+
+        if ("PERSONAL".equals(customer.getCustomerType())) {
+
+            return accountRepository.findByCustomerId(domain.getCustomerId())
+                    .collectList()
+                    .flatMap(accounts -> {
+
+                        boolean existsChecking = accounts.stream()
+                                .anyMatch(acc -> acc.getAccountType() == AccountType.CHECKING);
+
+                        if (existsChecking) {
+                            return Mono.error(new BusinessException("El cliente ya tiene una cuenta corriente"));
+                        }
+
+                        return accountRepository.create(domain);
+                    });
+        }
+        if (domain.getSigners() == null || domain.getSigners().isEmpty()) {
+            return Mono.error(new BusinessException(
+                    "Debes de mencionar al menos un titular"
+            ));
+        }
+
+        // Si es empresa, no se valida límite → se crea directamente
+        return accountRepository.create(domain);
+    }
+    /**Client Personal 1 account fixed term
+     * */
+    private Mono<Account> createFixedTerm(Account domain, CustomerResponseDTO customer) {
+
+        if ("BUSINESS".equals(customer.getCustomerType())) {
+            return Mono.error(new BusinessException("Una empresa no puede tener cuentas a plazo fijo"));
+        }
+
+        return accountRepository.findByCustomerId(domain.getCustomerId())
+                .collectList()
+                .flatMap(accounts -> {
+
+                    boolean existsFixed = accounts.stream()
+                            .anyMatch(acc -> acc.getAccountType() == AccountType.FIXED_TERM);
+
+                    if (existsFixed) {
+                        return Mono.error(new BusinessException("El cliente ya tiene una cuenta a plazo fijo"));
                     }
-                    account.addSignatory(signatoryId);
-                    return accountRepository.update(account);
+
+                    return accountRepository.create(domain);
                 });
     }
 
-    // ---------------------------------------------------
-    // Helpers privados del servicio
-    // ---------------------------------------------------
-    private boolean hasHoldersOrSignatories(Account domain) {
-        return (domain.getHolders() != null && !domain.getHolders().isEmpty())
-                || (domain.getSignatories() != null && !domain.getSignatories().isEmpty());
-    }
+
+
+
 }

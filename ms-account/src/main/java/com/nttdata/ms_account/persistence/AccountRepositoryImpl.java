@@ -40,4 +40,9 @@ public class AccountRepositoryImpl implements AccountRepository {
     public Mono<Void> deleteById(String id) {
         return accountMongoRepository.deleteById(id);
     }
+
+    @Override
+    public Flux<Account> findByCustomerId(String customerId) {
+        return accountMongoRepository.findByCustomerId(customerId).map(accountMapper::toDomain);
+    }
 }

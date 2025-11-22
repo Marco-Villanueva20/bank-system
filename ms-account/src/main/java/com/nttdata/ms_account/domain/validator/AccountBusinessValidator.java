@@ -1,7 +1,7 @@
 package com.nttdata.ms_account.domain.validator;
 
 import com.nttdata.ms_account.domain.dto.AccountRequestDTO;
-import com.nttdata.ms_account.domain.dto.CustomerResponseDTO;
+import com.nttdata.ms_account.infrastructure.client.dto.CustomerResponseDTO;
 import com.nttdata.ms_account.domain.model.AccountType;
 
 public class AccountBusinessValidator {

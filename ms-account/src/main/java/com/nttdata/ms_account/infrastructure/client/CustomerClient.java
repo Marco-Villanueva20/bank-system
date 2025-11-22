@@ -1,6 +1,6 @@
 package com.nttdata.ms_account.infrastructure.client;
 
-import com.nttdata.ms_account.domain.dto.CustomerResponseDTO;
+import com.nttdata.ms_account.infrastructure.client.dto.CustomerResponseDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
