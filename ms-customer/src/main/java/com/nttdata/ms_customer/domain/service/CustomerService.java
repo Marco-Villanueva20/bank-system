@@ -33,6 +33,7 @@ public class CustomerService {
                             existing.setDocumentNumber(customer.getDocumentNumber());
                             existing.setEmail(customer.getEmail());
                             existing.setPhone(customer.getPhone());
+                            existing.setActive(customer.getActive());
                             return customerRepository.update(existing);
                         }
                 );

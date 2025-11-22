@@ -19,6 +19,7 @@ public class CustomerMapper {
                 .email(customerResponseDTO.getEmail())
                 .phone(customerResponseDTO.getPhone())
                 .customerType(customerResponseDTO.getCustomerType())
+                .active(customerResponseDTO.getActive())
                 .build();
     }
 
@@ -32,6 +33,7 @@ public class CustomerMapper {
                 .email(domain.getEmail())
                 .phone(domain.getPhone())
                 .customerType(domain.getCustomerType())
+                .active(domain.getActive())
                 .build();
     }
 
@@ -46,6 +48,7 @@ public class CustomerMapper {
                 .email(entity.getEmail())
                 .phone(entity.getPhone())
                 .customerType(entity.getCustomerType())
+                .active(entity.getActive())
                 .build();
     }
 
@@ -59,6 +62,7 @@ public class CustomerMapper {
                 .email(domain.getEmail())
                 .phone(domain.getPhone())
                 .customerType(domain.getCustomerType())
+               .active(domain.getActive())
                 .build();
     }
 
@@ -70,6 +74,7 @@ public class CustomerMapper {
                 .email(requestDTO.getEmail())
                 .phone(requestDTO.getPhone())
                 .customerType(requestDTO.getCustomerType())
+                .active(requestDTO.getActive())
                 .build();
     }
 

@@ -25,7 +25,7 @@ public class CustomerEntity {
     private String email;
     private String phone;
     private CustomerType customerType;
-
+    private Boolean active;
 }
 
 

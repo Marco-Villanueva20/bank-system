@@ -18,4 +18,5 @@ public class CustomerRequestDTO {
     private String email;
     private String phone;
     private CustomerType customerType;
+    private Boolean active;
 }
